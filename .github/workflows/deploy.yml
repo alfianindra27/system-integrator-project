@@ -1,8 +1,6 @@
-# .github/workflows/deploy.yml
+name: CI/CD Deployment (Remote Build)
 
-name: CI/CD Deployment Docker Compose
-
-# Workflow akan berjalan setiap kali ada push ke branch 'main'
+# Trigger workflow ketika ada push ke branch 'main'
 on:
   push:
     branches:
@@ -21,34 +19,35 @@ jobs:
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          # Menggunakan Secret SSH_PRIVATE_KEY (file .pem Anda)
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # 3. Menambahkan Host EC2 ke known_hosts
-      # Ini penting untuk menghindari error "Host key verification failed"
+      # 3. Menambahkan IP Host ke known_hosts
       - name: Add EC2 Host to known_hosts
         run: |
           mkdir -p ~/.ssh
-          # Mengambil kunci publik host dan menambahkannya ke known_hosts
           ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
           
-      # 4. Melakukan Deployment melalui SSH
-      - name: Deploy Docker Compose via SSH
-        # Perintah ini akan dijalankan di terminal VPS EC2 Anda
+      # 4. Melakukan Transfer Kode dan Deployment
+      - name: Transfer Code and Deploy via SSH
+        # Menggunakan rsync untuk menyalin semua file ke VPS
         run: |
-          ssh -o StrictHostKeyChecking=no \
-              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+          # Menyalin kode ke direktori /home/ubuntu/monitoring/ di VPS
+          rsync -avz --exclude '.git' ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/ubuntu/monitoring/
+          
+          # Menjalankan perintah build dan run di VPS
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            echo 'Starting remote build and deploy...'
             
-            # Pindah ke direktori proyek (GANTI PATH INI sesuai direktori docker-compose.yml Anda)
+            # Pindah ke direktori proyek
             cd /home/ubuntu/monitoring &&
             
-            # 1. Mengunduh image Docker terbaru
-            echo 'Pulling latest Docker images...'
-            docker compose pull &&
+            # 1. Membangun image Docker terbaru dari kode yang baru disalin
+            # Pastikan Anda punya file docker-compose.yml yang mendefinisikan build: .
+            docker compose build &&
             
-            # 2. Menjalankan ulang services dengan image baru
-            echo 'Restarting Docker services...'
-            # --force-recreate memastikan kontainer dibuat ulang (membaca config terbaru)
+            # 2. Menjalankan ulang services
             docker compose up -d --force-recreate
+            
+            echo 'Deployment complete!'
           "

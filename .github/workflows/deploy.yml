@@ -1,0 +1,54 @@
+# .github/workflows/deploy.yml
+
+name: CI/CD Deployment Docker Compose
+
+# Workflow akan berjalan setiap kali ada push ke branch 'main'
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout kode repository
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      # 2. Setup SSH Agent dan Tambahkan Kunci Privat
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # Menggunakan Secret SSH_PRIVATE_KEY (file .pem Anda)
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # 3. Menambahkan Host EC2 ke known_hosts
+      # Ini penting untuk menghindari error "Host key verification failed"
+      - name: Add EC2 Host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          # Mengambil kunci publik host dan menambahkannya ke known_hosts
+          ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+      # 4. Melakukan Deployment melalui SSH
+      - name: Deploy Docker Compose via SSH
+        # Perintah ini akan dijalankan di terminal VPS EC2 Anda
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            
+            # Pindah ke direktori proyek (GANTI PATH INI sesuai direktori docker-compose.yml Anda)
+            cd /home/ubuntu/monitoring &&
+            
+            # 1. Mengunduh image Docker terbaru
+            echo 'Pulling latest Docker images...'
+            docker compose pull &&
+            
+            # 2. Menjalankan ulang services dengan image baru
+            echo 'Restarting Docker services...'
+            # --force-recreate memastikan kontainer dibuat ulang (membaca config terbaru)
+            docker compose up -d --force-recreate
+          "

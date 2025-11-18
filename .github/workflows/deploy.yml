@@ -1,4 +1,6 @@
-name: CI/CD Deployment (Remote Build)
+# .github/workflows/deploy.yml
+
+name: CI/CD Deployment Docker Compose
 
 # Trigger workflow ketika ada push ke branch 'main'
 on:
@@ -11,28 +13,30 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Checkout kode repository
       - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      # 2. Setup SSH Agent dan Tambahkan Kunci Privat
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
+          # Menggunakan Secret SSH_PRIVATE_KEY (file .pem Anda)
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # 3. Menambahkan IP Host ke known_hosts
+      # PERBAIKAN: Menambahkan Izin dan Proses ke known_hosts
       - name: Add EC2 Host to known_hosts
         run: |
+          # 1. Pastikan direktori ~/.ssh ada dan memiliki izin yang benar (700)
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh  # Perbaikan utama
+          
+          # 2. Menambahkan host EC2 ke known_hosts
           ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
           
       # 4. Melakukan Transfer Kode dan Deployment
       - name: Transfer Code and Deploy via SSH
-        # Menggunakan rsync untuk menyalin semua file ke VPS
         run: |
-          # Menyalin kode ke direktori /home/ubuntu/monitoring/ di VPS
+          # Menggunakan rsync untuk menyalin semua file ke VPS
           rsync -avz --exclude '.git' ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/ubuntu/monitoring/
           
           # Menjalankan perintah build dan run di VPS
@@ -42,11 +46,10 @@ jobs:
             # Pindah ke direktori proyek
             cd /home/ubuntu/monitoring &&
             
-            # 1. Membangun image Docker terbaru dari kode yang baru disalin
-            # Pastikan Anda punya file docker-compose.yml yang mendefinisikan build: .
+            # Membangun image Docker terbaru (dari kode yang baru disalin)
             docker compose build &&
             
-            # 2. Menjalankan ulang services
+            # Menjalankan ulang services (aplikasi, monitoring, dll.)
             docker compose up -d --force-recreate
             
             echo 'Deployment complete!'

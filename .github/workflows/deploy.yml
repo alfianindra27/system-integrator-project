@@ -22,16 +22,17 @@ jobs:
           # Menggunakan Secret SSH_PRIVATE_KEY (file .pem Anda)
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # PERBAIKAN: Menggabungkan dan mengamankan langkah penyiapan known_hosts
+      # PERBAIKAN: Gunakan perintah terpisah yang paling andal
       - name: Add EC2 Host to known_hosts
         run: |
-          # Perintah ini sangat andal: 
-          # 1. Membuat direktori ~/.ssh dan menetapkan izin 700 (wajib)
-          # 2. Menambahkan host EC2 ke known_hosts
-          # 3. Menetapkan izin 644 ke known_hosts
-          mkdir -p ~/.ssh && \
-          chmod 700 ~/.ssh && \
-          ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts && \
+          # 1. Pastikan direktori ~/.ssh ada (mkdir -p) dan diberi izin 700 (wajib)
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # 2. Ambil kunci host dan tambahkan ke known_hosts
+          ssh-keyscan ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          
+          # 3. Beri izin baca yang benar ke known_hosts
           chmod 644 ~/.ssh/known_hosts
           
       # 4. Melakukan Transfer Kode dan Deployment
